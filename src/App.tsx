@@ -1,0 +1,174 @@
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { Tldraw, Editor, GeoShapeGeoStyle, DefaultFontStyle } from 'tldraw'
+import { 
+  MousePointer2, Hand, Pencil, Eraser, Square, Circle, ArrowUpRight, Type, Undo2, Redo2,
+  FileText, Check, ZoomIn, ZoomOut, Maximize
+} from 'lucide-react'
+import { clsx } from 'clsx'
+import { useNoteStore } from './store/useNoteStore'
+import { NoteExplorer } from './components/NoteExplorer'
+
+const FONTS = [
+  { name: 'サンセリフ', value: 'sans' },
+  { name: 'セリフ', value: 'serif' },
+  { name: 'モノスペース', value: 'mono' },
+  { name: '手書き', value: 'draw' },
+]
+
+function App() {
+  const [editor, setEditor] = useState<Editor | null>(null)
+  const [activeTool, setActiveTool] = useState('select')
+  const [showExplorer, setShowExplorer] = useState(true)
+  const [showFontPicker, setShowFontPicker] = useState(false)
+  const [currentFont, setCurrentFont] = useState('sans')
+  const [zoomLevel, setZoomLevel] = useState(100)
+  const containerRef = useRef<HTMLDivElement>(null)
+  
+  const { activeNoteId } = useNoteStore()
+
+  const handleMount = useCallback((editor: Editor) => {
+    setEditor(editor)
+  }, [])
+
+  // Force Shift + Scroll Zoom via Native Event Listener
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !editor) return
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      if (e.shiftKey) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+        const rect = container.getBoundingClientRect()
+        const point = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+        if (delta < 0) {
+          editor.zoomIn(point, { animation: { duration: 120 } })
+        } else {
+          editor.zoomOut(point, { animation: { duration: 120 } })
+        }
+      }
+    }
+    container.addEventListener('wheel', handleNativeWheel, { passive: false, capture: true })
+    return () => container.removeEventListener('wheel', handleNativeWheel, { capture: true })
+  }, [editor])
+
+  // Sync Logic
+  useEffect(() => {
+    if (!editor) return
+    const updateState = () => {
+      const selectedShapes = editor.getSelectedShapes()
+      const isTextSelected = selectedShapes.some(s => s.type === 'text' || s.type === 'geo')
+      setShowFontPicker(isTextSelected)
+      if (isTextSelected) {
+        const textShape = selectedShapes.find(s => s.type === 'text' || s.type === 'geo')
+        if (textShape && 'font' in textShape.props) {
+          setCurrentFont(textShape.props.font as string)
+        }
+      }
+      setZoomLevel(Math.round(editor.getZoomLevel() * 100))
+    }
+    editor.on('change', updateState)
+    return () => {
+      editor.off('change', updateState)
+    }
+  }, [editor])
+
+  const selectTool = (toolId: string, geoType?: string) => {
+    if (!editor) return
+    editor.setCurrentTool(toolId)
+    if (toolId === 'geo' && geoType) {
+      editor.setStyleForNextShapes(GeoShapeGeoStyle, geoType)
+    }
+    setActiveTool(geoType ? `geo-${geoType}` : toolId)
+  }
+
+  const changeFont = (font: string) => {
+    if (!editor) return
+    editor.updateShapes(
+      editor.getSelectedShapes().map(shape => ({
+        ...shape,
+        props: { ...shape.props, font } as any
+      }))
+    )
+    setCurrentFont(font)
+  }
+
+  return (
+    <div className="thinkspace-container" style={{ 
+      width: '100vw', height: '100vh', display: 'flex', backgroundColor: '#f8fafc', overflow: 'hidden' 
+    }}>
+      {showExplorer && <NoteExplorer />}
+
+      <div 
+        ref={containerRef}
+        className={clsx('canvas-wrapper', activeTool === 'draw' && 'cursor-pen')}
+        style={{ flex: 1, position: 'relative', height: '100%' }}
+      >
+        <Tldraw 
+          key={activeNoteId}
+          inferDarkMode={false}
+          persistenceKey={`thinkspace-app-${activeNoteId}`}
+          hideUi={true}
+          onMount={handleMount}
+        />
+
+        {showFontPicker && (
+          <div className="glass-panel" style={{ 
+            position: 'absolute', top: '24px', right: '24px', padding: '6px',
+            display: 'flex', gap: '4px', pointerEvents: 'auto', animation: 'slideIn 0.2s ease-out'
+          }}>
+            {FONTS.map(font => (
+              <button key={font.value} className={clsx('nav-icon', currentFont === font.value && 'active')} 
+                style={{ fontSize: '13px', fontWeight: 600, width: 'auto', padding: '8px 14px', gap: '6px' }}
+                onClick={() => changeFont(font.value)}>
+                {currentFont === font.value && <Check size={14} />}
+                {font.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Zoom Controls */}
+        <div className="glass-panel" style={{ 
+          position: 'absolute', bottom: '24px', right: '24px', padding: '6px',
+          display: 'flex', alignItems: 'center', gap: '4px', pointerEvents: 'auto'
+        }}>
+          <button className="nav-icon" onClick={() => editor?.zoomOut()} title="ズームアウト"><ZoomOut size={20} /></button>
+          <button className="nav-icon" onClick={() => editor?.resetZoom()} 
+            style={{ fontSize: '12px', fontWeight: 700, width: 'auto', minWidth: '50px', padding: '0 8px' }}>
+            {zoomLevel}%
+          </button>
+          <button className="nav-icon" onClick={() => editor?.zoomIn()} title="ズームイン"><ZoomIn size={20} /></button>
+          <div style={{ width: '1px', height: '24px', background: 'rgba(0,0,0,0.05)', margin: '0 4px' }} />
+          <button className="nav-icon" onClick={() => editor?.zoomToFit()} title="全体を表示"><Maximize size={20} /></button>
+        </div>
+
+        {/* Sidebar UI */}
+        <div className="thinkspace-ui" style={{ position: 'absolute', top: '24px', left: '24px', bottom: '24px', pointerEvents: 'none' }}>
+          <div className="glass-panel" style={{ 
+            height: '100%', width: '64px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', pointerEvents: 'auto'
+          }}>
+            <button className={clsx('nav-icon', showExplorer && 'active')} onClick={() => setShowExplorer(!showExplorer)} title="ノート一覧"><FileText size={24} /></button>
+            <div className="tool-divider" />
+            <button onClick={() => editor?.undo()} className="nav-icon" title="元に戻す"><Undo2 size={22} /></button>
+            <button onClick={() => editor?.redo()} className="nav-icon" title="やり直し"><Redo2 size={22} /></button>
+            <div className="tool-divider" />
+            <button className={clsx('nav-icon', activeTool === 'select' && 'active')} onClick={() => selectTool('select')} title="選択 (V)"><MousePointer2 size={24} /></button>
+            <button className={clsx('nav-icon', activeTool === 'hand' && 'active')} onClick={() => selectTool('hand')} title="移動 (H)"><Hand size={24} /></button>
+            <div className="tool-divider" />
+            <button className={clsx('nav-icon', activeTool === 'draw' && 'active')} onClick={() => selectTool('draw')} title="手書き (D, P)"><Pencil size={22} /></button>
+            <button className={clsx('nav-icon', activeTool === 'eraser' && 'active')} onClick={() => selectTool('eraser')} title="消しゴム (E)"><Eraser size={22} /></button>
+            <div className="tool-divider" />
+            <button className={clsx('nav-icon', activeTool === 'geo-rectangle' && 'active')} onClick={() => selectTool('geo', 'rectangle')} title="矩形 (R)"><Square size={22} /></button>
+            <button className={clsx('nav-icon', activeTool === 'geo-ellipse' && 'active')} onClick={() => selectTool('geo', 'ellipse')} title="楕円 (O)"><Circle size={22} /></button>
+            <button className={clsx('nav-icon', activeTool === 'arrow' && 'active')} onClick={() => selectTool('arrow')} title="矢印 (A)"><ArrowUpRight size={22} /></button>
+            <button className={clsx('nav-icon', activeTool === 'text' && 'active')} onClick={() => selectTool('text')} title="テキスト (T)"><Type size={22} /></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default App
