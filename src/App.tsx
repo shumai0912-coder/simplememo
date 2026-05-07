@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Tldraw, Editor, GeoShapeGeoStyle, DefaultFontStyle } from 'tldraw'
+import { Tldraw, Editor, GeoShapeGeoStyle } from 'tldraw'
 import { 
   MousePointer2, Hand, Pencil, Eraser, Square, Circle, ArrowUpRight, Type, Undo2, Redo2,
   FileText, Check, ZoomIn, ZoomOut, Maximize
@@ -30,7 +30,7 @@ function App() {
     setEditor(editor)
   }, [])
 
-  // Force Shift + Scroll Zoom via Native Event Listener
+  // Robust Shift + Scroll Zoom (Blocking Horizontal Panning)
   useEffect(() => {
     const container = containerRef.current
     if (!container || !editor) return
@@ -39,23 +39,32 @@ function App() {
       if (e.shiftKey) {
         e.preventDefault()
         e.stopImmediatePropagation()
+        
         const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
         const rect = container.getBoundingClientRect()
+        
+        // Use a simple object that matches the minimal interface tldraw expects for point
         const point = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+
         if (delta < 0) {
-          editor.zoomIn(point, { animation: { duration: 120 } })
+          editor.zoomIn(point as any, { animation: { duration: 120 } })
         } else {
-          editor.zoomOut(point, { animation: { duration: 120 } })
+          editor.zoomOut(point as any, { animation: { duration: 120 } })
         }
       }
     }
+
     container.addEventListener('wheel', handleNativeWheel, { passive: false, capture: true })
-    return () => container.removeEventListener('wheel', handleNativeWheel, { capture: true })
+    
+    return () => {
+      container.removeEventListener('wheel', handleNativeWheel, { capture: true })
+    }
   }, [editor])
 
-  // Sync Logic
+  // Sync Logic (Selection & Zoom Display)
   useEffect(() => {
     if (!editor) return
+    
     const updateState = () => {
       const selectedShapes = editor.getSelectedShapes()
       const isTextSelected = selectedShapes.some(s => s.type === 'text' || s.type === 'geo')
@@ -68,13 +77,14 @@ function App() {
       }
       setZoomLevel(Math.round(editor.getZoomLevel() * 100))
     }
+
     editor.on('change', updateState)
     return () => {
       editor.off('change', updateState)
     }
   }, [editor])
 
-  const selectTool = (toolId: string, geoType?: string) => {
+  const selectTool = (toolId: string, geoType?: any) => {
     if (!editor) return
     editor.setCurrentTool(toolId)
     if (toolId === 'geo' && geoType) {
@@ -96,10 +106,16 @@ function App() {
 
   return (
     <div className="thinkspace-container" style={{ 
-      width: '100vw', height: '100vh', display: 'flex', backgroundColor: '#f8fafc', overflow: 'hidden' 
+      width: '100vw', 
+      height: '100vh', 
+      display: 'flex', 
+      backgroundColor: '#f8fafc',
+      overflow: 'hidden' 
     }}>
+      {/* Sidebar Explorer */}
       {showExplorer && <NoteExplorer />}
 
+      {/* Main Content Area */}
       <div 
         ref={containerRef}
         className={clsx('canvas-wrapper', activeTool === 'draw' && 'cursor-pen')}
@@ -113,15 +129,19 @@ function App() {
           onMount={handleMount}
         />
 
+        {/* Floating Font Picker */}
         {showFontPicker && (
           <div className="glass-panel" style={{ 
             position: 'absolute', top: '24px', right: '24px', padding: '6px',
             display: 'flex', gap: '4px', pointerEvents: 'auto', animation: 'slideIn 0.2s ease-out'
           }}>
             {FONTS.map(font => (
-              <button key={font.value} className={clsx('nav-icon', currentFont === font.value && 'active')} 
+              <button 
+                key={font.value}
+                className={clsx('nav-icon', currentFont === font.value && 'active')} 
                 style={{ fontSize: '13px', fontWeight: 600, width: 'auto', padding: '8px 14px', gap: '6px' }}
-                onClick={() => changeFont(font.value)}>
+                onClick={() => changeFont(font.value)}
+              >
                 {currentFont === font.value && <Check size={14} />}
                 {font.name}
               </button>
@@ -135,8 +155,12 @@ function App() {
           display: 'flex', alignItems: 'center', gap: '4px', pointerEvents: 'auto'
         }}>
           <button className="nav-icon" onClick={() => editor?.zoomOut()} title="ズームアウト"><ZoomOut size={20} /></button>
-          <button className="nav-icon" onClick={() => editor?.resetZoom()} 
-            style={{ fontSize: '12px', fontWeight: 700, width: 'auto', minWidth: '50px', padding: '0 8px' }}>
+          <button 
+            className="nav-icon" 
+            onClick={() => editor?.resetZoom()} 
+            style={{ fontSize: '12px', fontWeight: 700, width: 'auto', minWidth: '50px', padding: '0 8px' }}
+            title="等倍に戻す"
+          >
             {zoomLevel}%
           </button>
           <button className="nav-icon" onClick={() => editor?.zoomIn()} title="ズームイン"><ZoomIn size={20} /></button>
@@ -144,10 +168,16 @@ function App() {
           <button className="nav-icon" onClick={() => editor?.zoomToFit()} title="全体を表示"><Maximize size={20} /></button>
         </div>
 
-        {/* Sidebar UI */}
+        {/* Minimalist Sidebar UI */}
         <div className="thinkspace-ui" style={{ position: 'absolute', top: '24px', left: '24px', bottom: '24px', pointerEvents: 'none' }}>
           <div className="glass-panel" style={{ 
-            height: '100%', width: '64px', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', pointerEvents: 'auto'
+            height: '100%', 
+            width: '64px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            padding: '20px 0',
+            pointerEvents: 'auto'
           }}>
             <button className={clsx('nav-icon', showExplorer && 'active')} onClick={() => setShowExplorer(!showExplorer)} title="ノート一覧"><FileText size={24} /></button>
             <div className="tool-divider" />

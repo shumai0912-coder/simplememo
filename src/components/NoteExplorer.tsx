@@ -1,5 +1,5 @@
-import { useNoteStore, Note, Folder as FolderType } from '../store/useNoteStore'
-import { Folder, FileText, Plus, Trash2, ChevronRight, FolderPlus, ChevronDown, FilePlus } from 'lucide-react'
+import { useNoteStore, Folder as FolderType } from '../store/useNoteStore'
+import { Folder, FileText, Trash2, ChevronRight, FolderPlus, ChevronDown, FilePlus } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
 interface TreeItemProps {

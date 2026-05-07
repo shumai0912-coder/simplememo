@@ -33,7 +33,7 @@ interface NoteStore {
 
 export const useNoteStore = create<NoteStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       folders: [
         { id: 'main', name: 'メイン', parentId: null }
       ],
@@ -93,7 +93,6 @@ export const useNoteStore = create<NoteStore>()(
       deleteFolder: (id) => {
         if (id === 'main') return
         set((state) => {
-          const subFolders = state.folders.filter(f => f.parentId === id)
           // For simplicity, move subfolders and notes to 'main' on delete
           return {
             folders: state.folders.filter(f => f.id !== id).map(f => f.parentId === id ? { ...f, parentId: 'main' } : f),
