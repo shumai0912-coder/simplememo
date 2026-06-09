@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Tldraw, Editor, GeoShapeGeoStyle } from 'tldraw'
+import { Tldraw, Editor, GeoShapeGeoStyle, createShapeId, exportAs } from 'tldraw'
 import { 
   MousePointer2, Hand, Pencil, Eraser, Square, Circle, ArrowUpRight, Type, Undo2, Redo2,
-  FileText, Check, ZoomIn, ZoomOut, Maximize
+  FileText, Check, ZoomIn, ZoomOut, Maximize, Sigma, Sun, Moon, Download
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useNoteStore } from './store/useNoteStore'
 import { NoteExplorer } from './components/NoteExplorer'
+import { MathShapeUtil } from './components/MathShapeUtil'
 
 const FONTS = [
   { name: 'サンセリフ', value: 'sans' },
@@ -14,6 +15,8 @@ const FONTS = [
   { name: 'モノスペース', value: 'mono' },
   { name: '手書き', value: 'draw' },
 ]
+
+const customShapes = [MathShapeUtil]
 
 function App() {
   const [editor, setEditor] = useState<Editor | null>(null)
@@ -24,11 +27,35 @@ function App() {
   const [zoomLevel, setZoomLevel] = useState(100)
   const containerRef = useRef<HTMLDivElement>(null)
   
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('thinkspace-theme')
+    if (saved === 'light' || saved === 'dark') return saved
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+
   const { activeNoteId } = useNoteStore()
+
+  useEffect(() => {
+    localStorage.setItem('thinkspace-theme', theme)
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    if (editor) {
+      editor.user.updateUserPreferences({
+        colorScheme: theme
+      })
+    }
+  }, [theme, editor])
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+  }
 
   const handleMount = useCallback((editor: Editor) => {
     setEditor(editor)
-  }, [])
+    // Apply initial theme preferences after mount
+    editor.user.updateUserPreferences({
+      colorScheme: theme
+    })
+  }, [theme])
 
   // Robust Shift + Scroll Zoom (Blocking Horizontal Panning)
   useEffect(() => {
@@ -43,7 +70,6 @@ function App() {
         const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
         const rect = container.getBoundingClientRect()
         
-        // Use a simple object that matches the minimal interface tldraw expects for point
         const point = { x: e.clientX - rect.left, y: e.clientY - rect.top }
 
         if (delta < 0) {
@@ -104,12 +130,55 @@ function App() {
     setCurrentFont(font)
   }
 
+  const createMathShape = () => {
+    if (!editor) return
+    const bounds = editor.getViewportPageBounds()
+    const x = bounds.center.x - 120
+    const y = bounds.center.y - 40
+    
+    const id = createShapeId()
+    editor.createShape({
+      id,
+      type: 'math',
+      x,
+      y,
+      props: {
+        w: 240,
+        h: 80,
+        formula: 'f(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx'
+      }
+    })
+    
+    editor.select(id)
+    editor.setEditingShape(id)
+    setActiveTool('select')
+    editor.setCurrentTool('select')
+  }
+
+  const handleExport = async (format: 'png' | 'svg') => {
+    if (!editor) return
+    let shapeIds = editor.getSelectedShapeIds()
+    if (shapeIds.length === 0) {
+      shapeIds = Array.from(editor.getCurrentPageShapeIds())
+    }
+    if (shapeIds.length === 0) {
+      alert('エクスポートするオブジェクトがキャンバスにありません。')
+      return
+    }
+    
+    try {
+      await exportAs(editor, shapeIds, format, `thinkspace-export-${Date.now()}`)
+    } catch (err) {
+      console.error('Export failed:', err)
+    }
+  }
+
   return (
     <div className="thinkspace-container" style={{ 
       width: '100vw', 
       height: '100vh', 
       display: 'flex', 
-      backgroundColor: '#f8fafc',
+      backgroundColor: 'var(--bg-app, #f8fafc)',
       overflow: 'hidden' 
     }}>
       {/* Sidebar Explorer */}
@@ -127,27 +196,51 @@ function App() {
           persistenceKey={`thinkspace-app-${activeNoteId}`}
           hideUi={true}
           onMount={handleMount}
+          shapeUtils={customShapes}
         />
 
-        {/* Floating Font Picker */}
-        {showFontPicker && (
-          <div className="glass-panel" style={{ 
-            position: 'absolute', top: '24px', right: '24px', padding: '6px',
-            display: 'flex', gap: '4px', pointerEvents: 'auto', animation: 'slideIn 0.2s ease-out'
+        {/* Top-Right Control Bar (Theme & Export & Font Picker) */}
+        <div style={{
+          position: 'absolute', top: '24px', right: '24px',
+          display: 'flex', gap: '8px', pointerEvents: 'none', alignItems: 'center'
+        }}>
+          {/* Floating Font Picker */}
+          {showFontPicker && (
+            <div className="glass-panel" style={{ 
+              padding: '6px', display: 'flex', gap: '4px', pointerEvents: 'auto', animation: 'slideIn 0.2s ease-out'
+            }}>
+              {FONTS.map(font => (
+                <button 
+                  key={font.value}
+                  className={clsx('nav-icon', currentFont === font.value && 'active')} 
+                  style={{ fontSize: '13px', fontWeight: 600, width: 'auto', padding: '8px 14px', gap: '6px' }}
+                  onClick={() => changeFont(font.value)}
+                >
+                  {currentFont === font.value && <Check size={14} />}
+                  {font.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Theme & Export Panel */}
+          <div className="glass-panel" style={{
+            padding: '6px', display: 'flex', gap: '4px', pointerEvents: 'auto'
           }}>
-            {FONTS.map(font => (
-              <button 
-                key={font.value}
-                className={clsx('nav-icon', currentFont === font.value && 'active')} 
-                style={{ fontSize: '13px', fontWeight: 600, width: 'auto', padding: '8px 14px', gap: '6px' }}
-                onClick={() => changeFont(font.value)}
-              >
-                {currentFont === font.value && <Check size={14} />}
-                {font.name}
-              </button>
-            ))}
+            <button className="nav-icon" onClick={toggleTheme} title={theme === 'dark' ? 'ライトモードに変更' : 'ダークモードに変更'}>
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <div style={{ width: '1px', height: '24px', background: 'var(--divider-color, rgba(0,0,0,0.05))', margin: '0 2px' }} />
+            <button className="nav-icon" onClick={() => handleExport('png')} title="PNGとしてエクスポート" style={{ fontSize: '11px', fontWeight: 800, padding: '8px 10px', gap: '4px' }}>
+              <span>PNG</span>
+              <Download size={14} />
+            </button>
+            <button className="nav-icon" onClick={() => handleExport('svg')} title="SVGとしてエクスポート" style={{ fontSize: '11px', fontWeight: 800, padding: '8px 10px', gap: '4px' }}>
+              <span>SVG</span>
+              <Download size={14} />
+            </button>
           </div>
-        )}
+        </div>
 
         {/* Zoom Controls */}
         <div className="glass-panel" style={{ 
@@ -164,7 +257,7 @@ function App() {
             {zoomLevel}%
           </button>
           <button className="nav-icon" onClick={() => editor?.zoomIn()} title="ズームイン"><ZoomIn size={20} /></button>
-          <div style={{ width: '1px', height: '24px', background: 'rgba(0,0,0,0.05)', margin: '0 4px' }} />
+          <div style={{ width: '1px', height: '24px', background: 'var(--divider-color, rgba(0,0,0,0.05))', margin: '0 4px' }} />
           <button className="nav-icon" onClick={() => editor?.zoomToFit()} title="全体を表示"><Maximize size={20} /></button>
         </div>
 
@@ -194,6 +287,7 @@ function App() {
             <button className={clsx('nav-icon', activeTool === 'geo-ellipse' && 'active')} onClick={() => selectTool('geo', 'ellipse')} title="楕円 (O)"><Circle size={22} /></button>
             <button className={clsx('nav-icon', activeTool === 'arrow' && 'active')} onClick={() => selectTool('arrow')} title="矢印 (A)"><ArrowUpRight size={22} /></button>
             <button className={clsx('nav-icon', activeTool === 'text' && 'active')} onClick={() => selectTool('text')} title="テキスト (T)"><Type size={22} /></button>
+            <button className={clsx('nav-icon', activeTool === 'math' && 'active')} onClick={createMathShape} title="LaTeX 数式 (M)"><Sigma size={22} /></button>
           </div>
         </div>
       </div>
