@@ -226,9 +226,17 @@ const TreeItem = ({ folder, depth, searchQuery }: TreeItemProps) => {
 }
 
 export const NoteExplorer = () => {
-  const { folders, addFolder } = useNoteStore()
+  const { folders, addFolder, notes, togglePinNote, setActiveNote, activeNoteId, deleteNote } = useNoteStore()
   const [searchQuery, setSearchQuery] = useState('')
+  const [isPinnedOpen, setIsPinnedOpen] = useState(true)
+  
   const rootFolders = folders.filter(f => f.parentId === null)
+  const pinnedNotes = notes.filter(n => n.isPinned)
+
+  const getFolderName = (folderId: string) => {
+    const folder = folders.find(f => f.id === folderId)
+    return folder ? folder.name : ''
+  }
 
   return (
     <div className="explorer-panel glass-panel" style={{ borderRadius: 0, border: 'none', borderRight: '1.5px solid var(--border-color, rgba(0,0,0,0.1))' }}>
@@ -272,6 +280,75 @@ export const NoteExplorer = () => {
       </div>
 
       <div className="explorer-content">
+        {/* Pinned Notes Global Section */}
+        {pinnedNotes.length > 0 && (
+          <div className="pinned-section" style={{ marginBottom: '16px' }}>
+            <div 
+              className="folder-title pinned-section-header" 
+              onClick={() => setIsPinnedOpen(!isPinnedOpen)}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', textTransform: 'none' }}
+            >
+              {isPinnedOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              <Pin size={13} color="#6366f1" fill="#6366f1" />
+              <span style={{ color: 'var(--text-header, #1e1b4b)', fontWeight: 800, fontSize: '11px', letterSpacing: '0.05em' }}>ピン留めされたノート</span>
+              <span className="pinned-count-badge" style={{ marginLeft: 'auto', fontSize: '10px', background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>
+                {pinnedNotes.length}
+              </span>
+            </div>
+
+            {isPinnedOpen && (
+              <div className="pinned-notes-list" style={{ marginLeft: '8px', borderLeft: '1px dashed var(--divider-color)', paddingLeft: '4px', marginTop: '4px' }}>
+                {pinnedNotes.map(note => {
+                  const folderName = getFolderName(note.folderId)
+                  return (
+                    <div
+                      key={`pinned-${note.id}`}
+                      className={`note-item ${activeNoteId === note.id ? 'active' : ''}`}
+                      onClick={() => setActiveNote(note.id)}
+                      style={{ paddingLeft: '8px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}
+                    >
+                      <FileText size={16} color={activeNoteId === note.id ? '#4f46e5' : '#64748b'} />
+                      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13px', lineHeight: '1.2' }}>
+                          {note.name}
+                        </span>
+                        {folderName && (
+                          <span style={{ fontSize: '10px', color: 'var(--text-secondary)', opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>
+                            📁 {folderName}
+                          </span>
+                        )}
+                      </div>
+                      <div className="action-btns" style={{ display: 'flex', gap: '2px' }}>
+                        <button 
+                          className="action-btn pin-btn pinned" 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            togglePinNote(note.id)
+                          }}
+                          title="ピン留めを解除"
+                        >
+                          <Pin size={13} fill="currentColor" />
+                        </button>
+                        <button 
+                          className="action-btn" 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm('このノートを削除しますか？')) deleteNote(note.id)
+                          }}
+                          title="削除"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div style={{ height: '1px', background: 'var(--divider-color)', margin: '12px 0 8px 0' }} />
+          </div>
+        )}
+
         {rootFolders.map(folder => (
           <TreeItem key={folder.id} folder={folder} depth={0} searchQuery={searchQuery} />
         ))}
