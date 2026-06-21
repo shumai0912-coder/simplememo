@@ -24,6 +24,7 @@
   --bg-textarea: #ffffff;
   --text-textarea: #1e293b;
   --canvas-bg: #f1f5f9;
+  --paper-line: rgba(79, 70, 229, 0.07);
 }
 
 .dark {
@@ -40,6 +41,7 @@
   --bg-textarea: #1e293b;
   --text-textarea: #f8fafc;
   --canvas-bg: #0b0f19;
+  --paper-line: rgba(99, 102, 241, 0.09);
 }
 
 body {
@@ -60,14 +62,42 @@ body {
 }
 
 /* Tldraw custom styles to match our premium look */
+.canvas-wrapper {
+  background-color: var(--canvas-bg);
+  transition: background-color 0.3s;
+}
+
 .tl-container {
-  background-color: var(--canvas-bg) !important;
+  background-color: transparent !important;
   transition: background-color 0.3s !important;
 }
 
 .tl-canvas {
-  background-color: var(--canvas-bg) !important;
+  background-color: transparent !important;
   transition: background-color 0.3s !important;
+}
+
+/* Paper Templates (v4) */
+.canvas-wrapper.paper-plain {
+  background-image: none;
+}
+
+.canvas-wrapper.paper-grid {
+  background-image: 
+    linear-gradient(var(--paper-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-wrapper.paper-dots {
+  background-image: radial-gradient(var(--paper-line) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+}
+
+.canvas-wrapper.paper-ruled {
+  background-image: linear-gradient(var(--paper-line) 1px, transparent 1px);
+  background-size: 100% 28px;
 }
 
 /* Custom Font Mappings */

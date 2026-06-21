@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Tldraw, Editor, GeoShapeGeoStyle, createShapeId, exportAs } from 'tldraw'
 import { 
   MousePointer2, Hand, Pencil, Eraser, Square, Circle, ArrowUpRight, Type, Undo2, Redo2,
-  FileText, Check, ZoomIn, ZoomOut, Maximize, Sigma, Sun, Moon, Download
+  FileText, Check, ZoomIn, ZoomOut, Maximize, Sigma, Sun, Moon, Download, Grid3X3
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useNoteStore } from './store/useNoteStore'
@@ -33,6 +33,12 @@ function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
 
+  const [paperStyle, setPaperStyle] = useState<'plain' | 'grid' | 'dots' | 'ruled'>(() => {
+    const saved = localStorage.getItem('thinkspace-paper-style')
+    return (saved as 'plain' | 'grid' | 'dots' | 'ruled') || 'plain'
+  })
+  const [showPaperPicker, setShowPaperPicker] = useState(false)
+
   const { activeNoteId } = useNoteStore()
 
   useEffect(() => {
@@ -44,6 +50,10 @@ function App() {
       })
     }
   }, [theme, editor])
+
+  useEffect(() => {
+    localStorage.setItem('thinkspace-paper-style', paperStyle)
+  }, [paperStyle])
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
@@ -187,7 +197,7 @@ function App() {
       {/* Main Content Area */}
       <div 
         ref={containerRef}
-        className={clsx('canvas-wrapper', activeTool === 'draw' && 'cursor-pen')}
+        className={clsx('canvas-wrapper', activeTool === 'draw' && 'cursor-pen', `paper-${paperStyle}`)}
         style={{ flex: 1, position: 'relative', height: '100%' }}
       >
         <Tldraw 
@@ -223,10 +233,45 @@ function App() {
             </div>
           )}
 
+          {/* Floating Paper Picker */}
+          {showPaperPicker && (
+            <div className="glass-panel" style={{ 
+              padding: '6px', display: 'flex', gap: '4px', pointerEvents: 'auto', animation: 'slideIn 0.2s ease-out'
+            }}>
+              {[
+                { name: '無地', value: 'plain' },
+                { name: '方眼', value: 'grid' },
+                { name: 'ドット', value: 'dots' },
+                { name: '罫線', value: 'ruled' }
+              ].map(style => (
+                <button 
+                  key={style.value}
+                  className={clsx('nav-icon', paperStyle === style.value && 'active')} 
+                  style={{ fontSize: '13px', fontWeight: 600, width: 'auto', padding: '8px 14px', gap: '6px' }}
+                  onClick={() => {
+                    setPaperStyle(style.value as any)
+                    setShowPaperPicker(false)
+                  }}
+                >
+                  {paperStyle === style.value && <Check size={14} />}
+                  {style.name}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Theme & Export Panel */}
           <div className="glass-panel" style={{
             padding: '6px', display: 'flex', gap: '4px', pointerEvents: 'auto'
           }}>
+            <button 
+              className={clsx('nav-icon', showPaperPicker && 'active')} 
+              onClick={() => setShowPaperPicker(!showPaperPicker)} 
+              title="用紙スタイルを変更"
+            >
+              <Grid3X3 size={20} />
+            </button>
+            <div style={{ width: '1px', height: '24px', background: 'var(--divider-color, rgba(0,0,0,0.05))', margin: '0 2px' }} />
             <button className="nav-icon" onClick={toggleTheme} title={theme === 'dark' ? 'ライトモードに変更' : 'ダークモードに変更'}>
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
