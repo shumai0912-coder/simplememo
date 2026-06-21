@@ -6,6 +6,7 @@ export interface Note {
   name: string
   folderId: string
   updatedAt: number
+  isPinned?: boolean
 }
 
 export interface Folder {
@@ -24,6 +25,7 @@ interface NoteStore {
   setActiveNote: (id: string) => void
   updateNoteName: (id: string, name: string) => void
   moveNote: (noteId: string, targetFolderId: string) => void
+  togglePinNote: (id: string) => void
   
   addFolder: (name: string, parentId?: string | null) => void
   deleteFolder: (id: string) => void
@@ -74,6 +76,12 @@ export const useNoteStore = create<NoteStore>()(
       moveNote: (noteId, targetFolderId) => {
         set((state) => ({
           notes: state.notes.map(n => n.id === noteId ? { ...n, folderId: targetFolderId } : n)
+        }))
+      },
+
+      togglePinNote: (id) => {
+        set((state) => ({
+          notes: state.notes.map(n => n.id === id ? { ...n, isPinned: !n.isPinned } : n)
         }))
       },
 

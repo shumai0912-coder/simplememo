@@ -1,5 +1,5 @@
 import { useNoteStore, Folder as FolderType } from '../store/useNoteStore'
-import { Folder, FileText, Trash2, ChevronRight, FolderPlus, ChevronDown, FilePlus, Search, X } from 'lucide-react'
+import { Folder, FileText, Trash2, ChevronRight, FolderPlus, ChevronDown, FilePlus, Search, X, Pin } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
 interface TreeItemProps {
@@ -13,7 +13,7 @@ const TreeItem = ({ folder, depth, searchQuery }: TreeItemProps) => {
     notes, folders, activeNoteId, 
     setActiveNote, addNote, deleteNote, 
     addFolder, deleteFolder, moveNote, moveFolder,
-    updateNoteName, updateFolderName
+    updateNoteName, updateFolderName, togglePinNote
   } = useNoteStore()
 
   const [isOpen, setIsOpen] = useState(true)
@@ -47,6 +47,13 @@ const TreeItem = ({ folder, depth, searchQuery }: TreeItemProps) => {
   const visibleNotes = searchQuery.trim()
     ? folderNotes.filter(n => n.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : folderNotes
+
+  const sortedNotes = [...visibleNotes].sort((a, b) => {
+    const aPinned = a.isPinned ? 1 : 0
+    const bPinned = b.isPinned ? 1 : 0
+    if (aPinned !== bPinned) return bPinned - aPinned
+    return b.updatedAt - a.updatedAt
+  })
 
   // Force open folders when searching
   const displayOpen = searchQuery.trim() ? true : isOpen
@@ -156,12 +163,12 @@ const TreeItem = ({ folder, depth, searchQuery }: TreeItemProps) => {
           {visibleChildFolders.map(child => (
             <TreeItem key={child.id} folder={child} depth={depth + 1} searchQuery={searchQuery} />
           ))}
-          {visibleNotes.map(note => (
+          {sortedNotes.map(note => (
             <div
               key={note.id}
               draggable
               onDragStart={(e) => handleDragStart(e, 'note', note.id)}
-              className={`note-item ${activeNoteId === note.id ? 'active' : ''}`}
+              className={`note-item ${activeNoteId === note.id ? 'active' : ''} ${note.isPinned ? 'pinned' : ''}`}
               onClick={() => setActiveNote(note.id)}
               style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
               onDoubleClick={(e) => {
@@ -188,15 +195,28 @@ const TreeItem = ({ folder, depth, searchQuery }: TreeItemProps) => {
                   </span>
                 )}
               </div>
-              <button 
-                className="action-btn" 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (confirm('このノートを削除しますか？')) deleteNote(note.id)
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
+              <div className="action-btns" style={{ display: 'flex', gap: '2px' }}>
+                <button 
+                  className={`action-btn pin-btn ${note.isPinned ? 'pinned' : ''}`} 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    togglePinNote(note.id)
+                  }}
+                  title={note.isPinned ? "ピン留めを解除" : "ピン留めする"}
+                >
+                  <Pin size={13} fill={note.isPinned ? "currentColor" : "none"} style={{ transform: note.isPinned ? 'none' : 'rotate(45deg)' }} />
+                </button>
+                <button 
+                  className="action-btn" 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (confirm('このノートを削除しますか？')) deleteNote(note.id)
+                  }}
+                  title="削除"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
